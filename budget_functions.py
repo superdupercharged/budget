@@ -10,7 +10,7 @@ class budget():
         for category_name in self.category_names:
             for value in self.categories_dict[category_name]:
                 if value.lower() in Buchungstext.lower():
-                    return category_name
+                    return category_name, value
         return False
     
     def get_categories_sum(self):
