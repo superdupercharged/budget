@@ -6,8 +6,6 @@ from jinja2 import Template
 
 import budget_functions as bf
 
-#TODO alle Umsatzarten berücksichtigen
-
 args = sys.argv
 df_booking = pd.read_csv('statements/'+ args[1] +'_statement.CSV',
                 sep=';',
