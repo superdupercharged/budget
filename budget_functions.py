@@ -16,10 +16,14 @@ class budget():
     def get_categories_sum(self):
         pass
 
+    def save_categories_dict(self):
+        with open('budget_dict.json', 'w', encoding='utf-8') as f:
+            json.dump(self.categories_dict, f, indent=2, ensure_ascii=False)
+            f.write('\n')
+
     def add_save_categories_dict(self, index, alias):
         self.categories_dict[self.category_names[index]].append(alias)
-        with open('budget_dict.json', 'w') as f:
-            json.dump(self.categories_dict, f)
+        self.save_categories_dict()
     
     # for index, row in df_Lastschrift.iterrows():
     #     key_input = input(f"""Choose a key for this transaction: ({budget_category.keys()})

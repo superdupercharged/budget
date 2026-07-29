@@ -53,6 +53,15 @@
     }
     .upload-bar label { font-size: .85rem; color: var(--muted); white-space: nowrap; }
     .upload-bar input[type=file] { flex: 1; font-size: .85rem; color: var(--text); min-width: 0; }
+    .upload-bar select {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid #2a3148;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: .85rem;
+      max-width: 260px;
+    }
     .btn {
       background: var(--accent);
       color: #fff;
@@ -66,11 +75,61 @@
       white-space: nowrap;
     }
     .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .5; cursor: wait; }
     .btn-ghost {
       background: var(--surface2);
       color: var(--text);
     }
     #upload-status { font-size: .8rem; color: var(--green); }
+
+    /* ── Commitments ── */
+    .commitments-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .commitments-section h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .commitments-section .hint {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .commitments-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .commitment-card {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .commitment-card .c-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+    .commitment-card .c-paid {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    .commitment-card .c-planned {
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    .commitment-card.total {
+      border: 1px solid #2a3148;
+    }
 
     /* ── KPI cards ── */
     .kpi-grid {
@@ -115,7 +174,38 @@
       padding: 18px;
       margin-bottom: 20px;
     }
-    .categories-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
+    .categories-section .categories-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .categories-section .categories-header h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 0;
+    }
+    .categories-section.collapsed .commitment-row,
+    .categories-section.collapsed .commitment-divider {
+      display: none;
+    }
+    .commitment-divider {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin: 16px 0 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--surface2);
+    }
+    .cat-row.commitment-row .bar-fill {
+      background: #3b82f6 !important;
+    }
+    .cat-row.commitment-row .cat-amt {
+      color: #3b82f6 !important;
+    }
     .cat-row {
       display: grid;
       grid-template-columns: 90px 1fr 70px 60px;
@@ -230,17 +320,23 @@
 
 <div id="error-banner"></div>
 
-<!-- Upload -->
+<!-- Upload / month select -->
 <div class="upload-bar">
-  <label>📂 Statement CSV:</label>
+  <label for="month-select">Statement:</label>
+  <select id="month-select" title="Which statement file to show"></select>
+  <label for="csv-file">Upload CSV:</label>
   <input type="file" id="csv-file" accept=".csv,.CSV" />
-  <button class="btn" onclick="uploadCSV()">Upload</button>
-  <button class="btn btn-ghost" onclick="loadData()">↻ Refresh</button>
+  <button type="button" class="btn" id="btn-upload">Upload</button>
+  <button type="button" class="btn btn-ghost" id="btn-refresh">↻ Refresh</button>
   <span id="upload-status"></span>
 </div>
 
 <!-- KPIs -->
 <div class="kpi-grid">
+  <div class="kpi">
+    <span class="label">Income</span>
+    <span class="value green" id="kpi-income">—</span>
+  </div>
   <div class="kpi">
     <span class="label">Monthly Budget</span>
     <span class="value" id="kpi-budget">—</span>
@@ -266,9 +362,19 @@
   <span class="gauge-label" id="gauge-label">—</span>
 </div>
 
+<!-- Commitments (savings / loans) — not part of discretionary spend -->
+<div class="commitments-section" id="commitments-section">
+  <h2>COMMITMENTS</h2>
+  <p class="hint">Savings &amp; loan payments — shown separately, not counted toward the monthly spend budget.</p>
+  <div class="commitments-grid" id="commitments-grid"></div>
+</div>
+
 <!-- Category bars -->
-<div class="categories-section">
-  <h2>SPENDING BY CATEGORY</h2>
+<div class="categories-section" id="categories-section">
+  <div class="categories-header">
+    <h2>SPENDING BY CATEGORY</h2>
+    <button type="button" class="btn btn-ghost" id="btn-toggle-commitments" title="Hide house loan, car loan, savings, etc.">Hide commitments</button>
+  </div>
   <div id="cat-list"></div>
 </div>
 
@@ -288,7 +394,7 @@
 <div class="limits-section">
   <h2>EDIT BUDGET LIMITS</h2>
   <div class="limits-grid" id="limits-grid"></div>
-  <button class="btn" onclick="saveLimits()">Save Limits</button>
+  <button type="button" class="btn" id="btn-save-limits">Save Limits</button>
   <span id="limits-status" style="font-size:.8rem;color:var(--green);margin-left:10px"></span>
 </div>
 
@@ -360,12 +466,12 @@ function renderGauge(pctUsed) {
 }
 
 /* ── Category bars ── */
-function renderCategoryBars(categories) {
+function renderCategoryBars(categories, commitments) {
   const container = document.getElementById('cat-list');
   container.innerHTML = '';
 
-  categories.forEach(cat => {
-    const pct     = cat.pct !== null ? cat.pct : null;
+  (categories || []).forEach(cat => {
+    const pct     = cat.pct !== null && cat.pct !== undefined ? cat.pct : null;
     const barPct  = pct !== null ? Math.min(pct, 100) : 50;
     const color   = pctColor(pct);
     const limitTxt = cat.limit ? `/ ${eur(cat.limit)}` : '';
@@ -373,7 +479,7 @@ function renderCategoryBars(categories) {
     const row = document.createElement('div');
     row.className = 'cat-row';
     row.innerHTML = `
-      <span class="cat-name" title="${cat.name}">${cat.name}</span>
+      <span class="cat-name" title="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</span>
       <div class="bar-track">
         <div class="bar-fill" style="width:${barPct}%;background:${color}"></div>
       </div>
@@ -382,9 +488,36 @@ function renderCategoryBars(categories) {
     `;
     container.appendChild(row);
   });
+
+  const items = (commitments || []).filter(c => (c.paid || 0) > 0 || (c.planned || 0) > 0);
+  if (!items.length) return;
+
+  const divider = document.createElement('div');
+  divider.className = 'commitment-divider';
+  divider.textContent = 'Commitments (not in spend budget)';
+  container.appendChild(divider);
+
+  items.forEach(c => {
+    const paid = c.paid || 0;
+    const planned = c.planned || 0;
+    const pct = planned > 0 ? (paid / planned) * 100 : null;
+    const barPct = pct !== null ? Math.min(pct, 100) : (paid > 0 ? 100 : 0);
+    const limitTxt = planned > 0 ? `/ ${eur(planned)}` : '';
+    const row = document.createElement('div');
+    row.className = 'cat-row commitment-row';
+    row.innerHTML = `
+      <span class="cat-name" title="${escapeHtml(c.label || c.name)}">${escapeHtml(c.label || c.name)}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${barPct}%"></div>
+      </div>
+      <span class="cat-amt">${eur(paid)}</span>
+      <span class="cat-limit">${limitTxt}</span>
+    `;
+    container.appendChild(row);
+  });
 }
 
-/* ── Bar chart ── */
+/* ── Bar chart (discretionary spend only — no commitments) ── */
 function renderBarChart(categories) {
   const labels  = categories.map(c => c.name);
   const spent   = categories.map(c => c.spent);
@@ -449,7 +582,64 @@ function renderBarChart(categories) {
   }
 }
 
+/* ── Commitments cards ── */
+const COMMITMENTS_HIDE_KEY = 'budget.hideCommitments';
+
+function applyCommitmentsVisibility() {
+  const section = document.getElementById('categories-section');
+  const btn = document.getElementById('btn-toggle-commitments');
+  if (!section || !btn) return;
+  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
+  section.classList.toggle('collapsed', hidden);
+  btn.textContent = hidden ? 'Show commitments' : 'Hide commitments';
+}
+
+function toggleCommitments() {
+  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
+  localStorage.setItem(COMMITMENTS_HIDE_KEY, hidden ? '0' : '1');
+  applyCommitmentsVisibility();
+}
+
+function renderCommitments(commitments, total) {
+  const grid = document.getElementById('commitments-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const items = commitments || [];
+  if (!items.length) {
+    grid.innerHTML = '<p style="color:var(--muted);font-size:.85rem">No commitment payments in this statement.</p>';
+    return;
+  }
+  for (const c of items) {
+    const card = document.createElement('div');
+    card.className = 'commitment-card';
+    const planned = (c.planned != null && c.planned > 0)
+      ? `planned ${eur(c.planned)}`
+      : '';
+    card.innerHTML = `
+      <span class="c-label">${escapeHtml(c.label || c.name)}</span>
+      <span class="c-paid">${eur(c.paid || 0)}</span>
+      <span class="c-planned">${planned}</span>
+    `;
+    grid.appendChild(card);
+  }
+  const totalCard = document.createElement('div');
+  totalCard.className = 'commitment-card total';
+  totalCard.innerHTML = `
+    <span class="c-label">Total commitments</span>
+    <span class="c-paid">${eur(total || 0)}</span>
+  `;
+  grid.appendChild(totalCard);
+}
+
 /* ── Unclassified ── */
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderUnclassified(txs) {
   const section = document.getElementById('unknown-section');
   const list    = document.getElementById('unknown-list');
@@ -458,8 +648,8 @@ function renderUnclassified(txs) {
   list.innerHTML = txs.map(tx => `
     <div class="tx-row">
       <div>
-        <div class="tx-text">${tx.text}</div>
-        <div class="tx-date">${tx.date || ''}</div>
+        <div class="tx-text">${escapeHtml(tx.text)}</div>
+        <div class="tx-date">${escapeHtml(tx.date || '')}</div>
       </div>
       <span class="tx-amt" style="color:var(--red)">${eur(tx.amount)}</span>
     </div>
@@ -476,8 +666,8 @@ function renderLimitsEditor(limits) {
     const item = document.createElement('div');
     item.className = 'limit-item';
     item.innerHTML = `
-      <label>${key}</label>
-      <input type="number" id="limit-${key}" value="${val}" min="0" step="10" />
+      <label>${escapeHtml(key)}</label>
+      <input type="number" id="limit-${escapeHtml(key)}" value="${val}" min="0" step="10" />
     `;
     grid.appendChild(item);
   }
@@ -498,62 +688,118 @@ async function saveLimits() {
     const key = inp.id.replace('limit-', '');
     payload[key] = parseFloat(inp.value) || 0;
   });
-  const resp = await fetch('/api/limits', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (resp.ok) {
-    document.getElementById('limits-status').textContent = '✓ Saved';
-    setTimeout(() => document.getElementById('limits-status').textContent = '', 2000);
-    loadData();
+  const status = document.getElementById('limits-status');
+  try {
+    const resp = await fetch('/api/limits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    status.textContent = '✓ Saved';
+    status.style.color = 'var(--green)';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+    await loadData();
+  } catch (err) {
+    status.textContent = '✗ Save failed: ' + err.message;
+    status.style.color = 'var(--red)';
   }
 }
 
-/* ── Upload ── */
+/* ── Statement picker ── */
+function selectedMonth() {
+  const sel = document.getElementById('month-select');
+  return sel && sel.value ? sel.value : null;
+}
+
+async function refreshStatementList(preferFilename) {
+  const sel = document.getElementById('month-select');
+  const resp = await fetch('/api/statements');
+  if (!resp.ok) return;
+  const { files } = await resp.json();
+  const previous = preferFilename || sel.value;
+  sel.innerHTML = '';
+  if (!files || files.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no statements yet)';
+    sel.appendChild(opt);
+    return;
+  }
+  for (const name of files) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    // Show YYYY-MM when filename looks like 2026-07_statement.CSV
+    const m = name.match(/(\d{4}-\d{2})/);
+    opt.textContent = m ? `${m[1]} — ${name}` : name;
+    sel.appendChild(opt);
+  }
+  if (previous && files.includes(previous)) {
+    sel.value = previous;
+  }
+}
+
+function setStatus(msg, ok = true) {
+  const status = document.getElementById('upload-status');
+  status.textContent = msg;
+  status.style.color = ok ? 'var(--green)' : 'var(--red)';
+}
+
+/* ── Upload: save CSV into statements/, then reload that file ── */
 async function uploadCSV() {
   const fileInput = document.getElementById('csv-file');
   const file = fileInput.files[0];
-  if (!file) { alert('Please select a CSV file first.'); return; }
-  const form = new FormData();
-  form.append('file', file);
-  const resp = await fetch('/api/upload', { method: 'POST', body: form });
-  const status = document.getElementById('upload-status');
-  if (resp.ok) {
-    status.textContent = '✓ Uploaded — refreshing…';
-    status.style.color = 'var(--green)';
-    setTimeout(() => { status.textContent = ''; loadData(); }, 800);
-  } else {
-    status.textContent = '✗ Upload failed';
-    status.style.color = 'var(--red)';
+  if (!file) {
+    setStatus('Select a CSV file first.', false);
+    return;
+  }
+  const btn = document.getElementById('btn-upload');
+  btn.disabled = true;
+  setStatus('Uploading…');
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const resp = await fetch('/api/upload', { method: 'POST', body: form });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      throw new Error(body.detail || 'Upload failed');
+    }
+    fileInput.value = '';
+    setStatus('✓ Uploaded ' + body.filename);
+    await refreshStatementList(body.filename);
+    await loadData();
+  } catch (err) {
+    setStatus('✗ ' + err.message, false);
+  } finally {
+    btn.disabled = false;
   }
 }
 
 /* ── Main data load ── */
 async function loadData() {
   clearError();
+  const btn = document.getElementById('btn-refresh');
+  if (btn) btn.disabled = true;
   document.getElementById('last-updated').textContent = 'Loading…';
 
   try {
-    const [summaryResp, limitsResp] = await Promise.all([
-      fetch('/api/summary'),
-      fetch('/api/limits').catch(() => null),   // limits from config
+    const month = selectedMonth();
+    const qs = month ? ('?month=' + encodeURIComponent(month)) : '';
+    const [summaryResp, cfgResp] = await Promise.all([
+      fetch('/api/summary' + qs),
+      fetch('/api/config'),
     ]);
+    if (!summaryResp.ok) throw new Error('Summary request failed (' + summaryResp.status + ')');
     const data = await summaryResp.json();
 
-    // Limits for editor come from config endpoint or fallback from summary
-    let limitsForEditor = {};
-    // We'll read limits from the config.json indirectly via the summary categories
-    // Build a flat limit map from categories + total
-    limitsForEditor['_total'] = data.monthly_budget;
-    data.categories && data.categories.forEach(c => {
+    let limitsForEditor = { _total: data.monthly_budget };
+    (data.categories || []).forEach(c => {
       if (c.limit) limitsForEditor[c.name] = c.limit;
     });
 
-    // Show error if present
     if (data.error) showError(data.error);
 
-    // KPIs
+    document.getElementById('kpi-income').textContent    = eur(data.total_income ?? 0);
     document.getElementById('kpi-budget').textContent    = eur(data.monthly_budget);
     document.getElementById('kpi-spent').textContent     = eur(data.total_expense);
     document.getElementById('kpi-txcount').textContent   = data.transaction_count;
@@ -562,43 +808,70 @@ async function loadData() {
     remEl.textContent = eur(data.remaining);
     remEl.className   = 'value ' + remainingClass(data.remaining_pct);
 
-    // Gauge
-    const pctUsed = 100 - data.remaining_pct;
-    renderGauge(pctUsed);
+    const pctUsed = 100 - (data.remaining_pct ?? 100);
+    if (typeof Chart !== 'undefined') {
+      renderGauge(pctUsed);
+      if (data.categories && data.categories.length) {
+        renderBarChart(data.categories);
+      }
+    } else {
+      showError('Chart.js failed to load — numbers still update, charts disabled.');
+    }
     document.getElementById('gauge-label').textContent =
       `${eur(data.remaining)} remaining  (${data.remaining_pct}% left)`;
     document.getElementById('gauge-label').style.color = pctColor(pctUsed);
 
-    // Category bars + chart
-    if (data.categories && data.categories.length) {
-      renderCategoryBars(data.categories);
-      renderBarChart(data.categories);
+    if ((data.categories && data.categories.length) ||
+        (data.commitments || []).some(c => (c.paid || 0) > 0 || (c.planned || 0) > 0)) {
+      renderCategoryBars(data.categories || [], data.commitments);
+    } else {
+      document.getElementById('cat-list').innerHTML =
+        '<p style="color:var(--muted);font-size:.85rem">No categorized expenses in this statement.</p>';
     }
 
-    // Unclassified
+    renderCommitments(data.commitments, data.total_commitments);
+    applyCommitmentsVisibility();
     renderUnclassified(data.unclassified);
 
-    // Limits editor — load config separately to get all categories
-    const cfgResp = await fetch('/api/config');
     if (cfgResp.ok) {
-      const cfg = await cfgResp.json();
-      renderLimitsEditor(cfg);
+      renderLimitsEditor(await cfgResp.json());
     } else {
       renderLimitsEditor(limitsForEditor);
     }
 
+    const src = data.source ? ` · ${data.source}` : '';
     document.getElementById('last-updated').textContent =
-      'Updated ' + new Date().toLocaleTimeString();
-
+      'Updated ' + new Date().toLocaleTimeString() + src;
   } catch (err) {
     showError('Failed to load data: ' + err.message);
     document.getElementById('last-updated').textContent = 'Error';
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
-/* Auto-refresh every 60 seconds */
-setInterval(loadData, 60_000);
-loadData();
+async function refreshClicked() {
+  setStatus('Refreshing…');
+  await refreshStatementList(selectedMonth());
+  await loadData();
+  setStatus('✓ Refreshed');
+  setTimeout(() => setStatus(''), 1500);
+}
+
+/* Wire buttons (type=button + listeners — more reliable than inline onclick) */
+document.getElementById('btn-upload').addEventListener('click', uploadCSV);
+document.getElementById('btn-refresh').addEventListener('click', refreshClicked);
+document.getElementById('btn-save-limits').addEventListener('click', saveLimits);
+document.getElementById('btn-toggle-commitments').addEventListener('click', toggleCommitments);
+document.getElementById('month-select').addEventListener('change', () => loadData());
+
+/* Boot */
+(async function init() {
+  applyCommitmentsVisibility();
+  await refreshStatementList();
+  await loadData();
+  setInterval(() => loadData(), 60000);
+})();
 </script>
 
 </body>

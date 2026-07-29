@@ -10,15 +10,13 @@ Endpoints:
 """
 
 import json
-import os
-import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ingest import load_latest_statement, summarize
+from ingest import load_statement_with_meta, list_statement_files, summarize
 
 BASE_DIR    = Path(__file__).parent
 ROOT_DIR    = BASE_DIR.parent
@@ -27,6 +25,7 @@ CONFIG_FILE = BASE_DIR / "config.json"
 STATIC_DIR  = BASE_DIR / "static"
 
 app = FastAPI(title="Budget Dashboard")
+STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
@@ -40,50 +39,69 @@ def save_limits(limits: dict):
         json.dump(limits, f, indent=2)
 
 
+def empty_summary(limits: dict, error: str) -> dict:
+    return {
+        "total_income": 0,
+        "total_expense": 0,
+        "total_commitments": 0,
+        "monthly_budget": limits.get("_total", 3000),
+        "remaining": limits.get("_total", 3000),
+        "remaining_pct": 100,
+        "categories": [],
+        "commitments": [],
+        "unclassified": [],
+        "transaction_count": 0,
+        "source": None,
+        "error": error,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = BASE_DIR / "templates" / "index.html"
     return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
 
 
+@app.get("/api/statements")
+async def get_statements():
+    STATEMENTS.mkdir(exist_ok=True)
+    return JSONResponse({"files": list_statement_files(str(STATEMENTS))})
+
+
 @app.get("/api/summary")
-async def get_summary():
+async def get_summary(month: str | None = None):
     limits = load_limits()
     STATEMENTS.mkdir(exist_ok=True)
-    transactions = load_latest_statement(str(STATEMENTS))
+    transactions, source = load_statement_with_meta(str(STATEMENTS), month)
     if not transactions:
-        # Return empty state so the UI still renders
-        return JSONResponse({
-            "total_income": 0,
-            "total_expense": 0,
-            "monthly_budget": limits.get("_total", 3000),
-            "remaining": limits.get("_total", 3000),
-            "remaining_pct": 100,
-            "categories": [],
-            "unclassified": [],
-            "transaction_count": 0,
-            "error": "No statement file found. Upload a CSV to get started."
-        })
+        return JSONResponse(empty_summary(
+            limits, "No statement file found. Upload a CSV to get started."
+        ))
     summary = summarize(transactions, limits)
+    summary["source"] = source
     return JSONResponse(summary)
 
 
 @app.get("/api/transactions")
-async def get_transactions():
+async def get_transactions(month: str | None = None):
     STATEMENTS.mkdir(exist_ok=True)
-    transactions = load_latest_statement(str(STATEMENTS))
-    return JSONResponse({"transactions": transactions})
+    transactions, source = load_statement_with_meta(str(STATEMENTS), month)
+    return JSONResponse({"transactions": transactions, "source": source})
 
 
 @app.post("/api/upload")
 async def upload_statement(file: UploadFile = File(...)):
-    if not (file.filename.endswith(".CSV") or file.filename.endswith(".csv")):
+    if not file.filename or not (
+        file.filename.endswith(".CSV") or file.filename.endswith(".csv")
+    ):
         raise HTTPException(400, "Only CSV files are accepted.")
+    # Keep uploads in the statements root (never into subdirs)
+    safe_name = Path(file.filename).name
     STATEMENTS.mkdir(exist_ok=True)
-    dest = STATEMENTS / file.filename
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return JSONResponse({"status": "ok", "filename": file.filename})
+    dest = STATEMENTS / safe_name
+    content = await file.read()
+    dest.write_bytes(content)
+    return JSONResponse({"status": "ok", "filename": safe_name})
 
 
 @app.get("/api/config")
@@ -97,7 +115,7 @@ async def get_limits():
 
 
 @app.post("/api/limits")
-async def update_limits(body: dict):
+async def update_limits(body: dict = Body(...)):
     limits = load_limits()
     for k, v in body.items():
         try:

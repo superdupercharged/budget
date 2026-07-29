@@ -100,12 +100,14 @@ for index, row in df_booking_unknown.iterrows():
     print(f'{df_booking_unknown.shape[0]} unclassified bookings are left')
 
 total_in, total_out = 0, 0
-for dict in evaluation:
-    category_sums.append(sum(dict.values())) # TODO kommutativgesetz savings?!, other stimmt nicht?
-for i in category_sums[:2]:
-    total_in = total_in + i
-for i in category_sums[2:]:
-    total_out = total_out + i
+ignore_cats = {"transfers", "savings", "car_loan", "house_loan", "wuestenrot", "tithe"}
+for i, name in enumerate(category_names):
+    if i >= len(category_sums):
+        break
+    if name == "income":
+        total_in += category_sums[i]
+    elif name not in ignore_cats:
+        total_out += category_sums[i]
 
 # print(df.loc[0])
 

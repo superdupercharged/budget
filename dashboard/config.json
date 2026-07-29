@@ -1,15 +1,21 @@
 {
-  "_total": 3000,
-  "_comment": "Monthly budget limits per category in EUR. _total is the overall monthly cap.",
-  "food":     500,
-  "rent":     900,
-  "gas":      150,
-  "fun":      300,
-  "life":     200,
-  "clothes":  150,
-  "car":      100,
-  "house":    200,
-  "hobby":    100,
-  "holidays": 300,
-  "other":    100
+  "_total": 5400,
+  "_comment": "Suggested monthly limits from ~€6,940 mean income (excl. June/December). Housing includes Nebenkosten (€500). Commitments tracked separately.",
+  "_income_basis": 6940,
+  "_income_excludes": "June, December (extra payments); partial months",
+  "_commitments": {
+    "savings": 200,
+    "car_loan": 258,
+    "house_loan": 1700,
+    "wuestenrot": 300,
+    "tithe": 500
+  },
+  "housing": 1600,
+  "food": 925,
+  "life": 925,
+  "mobility": 350,
+  "shopping": 525,
+  "fun": 400,
+  "holidays": 425,
+  "other": 250
 }
