@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --accent:    #7c6af7;
+      --green:     #22c55e;
+      --yellow:    #f59e0b;
+      --red:       #ef4444;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; }
+    header h1 span { color: var(--accent); }
+    .last-updated { font-size: .78rem; color: var(--muted); }
+
+    /* ── Upload bar ── */
+    .upload-bar {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .upload-bar label { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+    .upload-bar input[type=file] { flex: 1; font-size: .85rem; color: var(--text); min-width: 0; }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    #upload-status { font-size: .8rem; color: var(--green); }
+
+    /* ── KPI cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .kpi .value { font-size: 1.6rem; font-weight: 700; }
+    .kpi .value.green { color: var(--green); }
+    .kpi .value.red   { color: var(--red); }
+    .kpi .value.yellow{ color: var(--yellow); }
+
+    /* ── Remaining gauge ── */
+    .gauge-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .gauge-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); align-self: flex-start; }
+    #gauge-canvas { max-height: 180px; }
+    .gauge-label { font-size: 1.1rem; font-weight: 600; }
+
+    /* ── Category bars ── */
+    .categories-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .categories-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
+    .cat-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 70px 60px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .cat-name {
+      font-size: .82rem;
+      font-weight: 600;
+      text-transform: capitalize;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bar-track {
+      background: var(--surface2);
+      border-radius: 100px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 100px;
+      transition: width .5s ease;
+    }
+    .cat-amt   { font-size: .82rem; font-weight: 700; text-align: right; }
+    .cat-limit { font-size: .75rem; color: var(--muted); text-align: right; }
+
+    /* ── Unclassified ── */
+    .unknown-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .unknown-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
+    .tx-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--surface2);
+      gap: 8px;
+    }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-text { font-size: .8rem; flex: 1; word-break: break-word; }
+    .tx-amt  { font-size: .82rem; font-weight: 700; white-space: nowrap; }
+    .tx-date { font-size: .72rem; color: var(--muted); }
+
+    /* ── Chart section ── */
+    .chart-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .chart-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
+    #bar-canvas { max-height: 280px; }
+
+    /* ── Limits editor ── */
+    .limits-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .limits-section h2 { font-size: .9rem; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
+    .limits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .limit-item { display: flex; flex-direction: column; gap: 4px; }
+    .limit-item label { font-size: .75rem; color: var(--muted); text-transform: capitalize; }
+    .limit-item input {
+      background: var(--surface2);
+      border: 1px solid #2e3348;
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: .85rem;
+      width: 100%;
+    }
+    .limit-item input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    /* ── Error banner ── */
+    #error-banner {
+      display: none;
+      background: #3b1515;
+      border: 1px solid var(--red);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: .85rem;
+      color: #fca5a5;
+    }
+
+    @media (max-width: 480px) {
+      .cat-row { grid-template-columns: 80px 1fr 60px; }
+      .cat-limit { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>💸 <span>Budget</span> Dashboard</h1>
+  <span class="last-updated" id="last-updated">Loading…</span>
+</header>
+
+<div id="error-banner"></div>
+
+<!-- Upload -->
+<div class="upload-bar">
+  <label>📂 Statement CSV:</label>
+  <input type="file" id="csv-file" accept=".csv,.CSV" />
+  <button class="btn" onclick="uploadCSV()">Upload</button>
+  <button class="btn btn-ghost" onclick="loadData()">↻ Refresh</button>
+  <span id="upload-status"></span>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <span class="label">Monthly Budget</span>
+    <span class="value" id="kpi-budget">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Total Spent</span>
+    <span class="value" id="kpi-spent">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Remaining</span>
+    <span class="value" id="kpi-remaining">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Transactions</span>
+    <span class="value" id="kpi-txcount">—</span>
+  </div>
+</div>
+
+<!-- Gauge -->
+<div class="gauge-section">
+  <h2>BUDGET USED</h2>
+  <canvas id="gauge-canvas" width="320" height="180"></canvas>
+  <span class="gauge-label" id="gauge-label">—</span>
+</div>
+
+<!-- Category bars -->
+<div class="categories-section">
+  <h2>SPENDING BY CATEGORY</h2>
+  <div id="cat-list"></div>
+</div>
+
+<!-- Bar chart -->
+<div class="chart-section">
+  <h2>CATEGORY OVERVIEW</h2>
+  <canvas id="bar-canvas"></canvas>
+</div>
+
+<!-- Unclassified -->
+<div class="unknown-section" id="unknown-section" style="display:none">
+  <h2>⚠️ UNCLASSIFIED TRANSACTIONS</h2>
+  <div id="unknown-list"></div>
+</div>
+
+<!-- Limits editor -->
+<div class="limits-section">
+  <h2>EDIT BUDGET LIMITS</h2>
+  <div class="limits-grid" id="limits-grid"></div>
+  <button class="btn" onclick="saveLimits()">Save Limits</button>
+  <span id="limits-status" style="font-size:.8rem;color:var(--green);margin-left:10px"></span>
+</div>
+
+<script>
+let barChart = null;
+let gaugeChart = null;
+let currentLimits = {};
+
+/* ── Colour helpers ── */
+function pctColor(pct) {
+  if (pct === null) return '#7c6af7';
+  if (pct >= 100) return '#ef4444';
+  if (pct >= 80)  return '#f59e0b';
+  return '#22c55e';
+}
+
+function remainingClass(pct) {
+  if (pct < 10) return 'red';
+  if (pct < 30) return 'yellow';
+  return 'green';
+}
+
+/* ── Format helpers ── */
+function eur(val) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val);
+}
+
+/* ── Error banner ── */
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = msg;
+  b.style.display = 'block';
+}
+function clearError() {
+  document.getElementById('error-banner').style.display = 'none';
+}
+
+/* ── Gauge (doughnut) ── */
+function renderGauge(pctUsed) {
+  const used  = Math.min(pctUsed, 100);
+  const free  = Math.max(100 - used, 0);
+  const color = pctColor(pctUsed);
+
+  const cfg = {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [used, free],
+        backgroundColor: [color, '#22263a'],
+        borderWidth: 0,
+        circumference: 240,
+        rotation: -120,
+      }]
+    },
+    options: {
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 600 },
+    }
+  };
+
+  if (gaugeChart) {
+    gaugeChart.data.datasets[0].data = [used, free];
+    gaugeChart.data.datasets[0].backgroundColor[0] = color;
+    gaugeChart.update();
+  } else {
+    gaugeChart = new Chart(document.getElementById('gauge-canvas'), cfg);
+  }
+}
+
+/* ── Category bars ── */
+function renderCategoryBars(categories) {
+  const container = document.getElementById('cat-list');
+  container.innerHTML = '';
+
+  categories.forEach(cat => {
+    const pct     = cat.pct !== null ? cat.pct : null;
+    const barPct  = pct !== null ? Math.min(pct, 100) : 50;
+    const color   = pctColor(pct);
+    const limitTxt = cat.limit ? `/ ${eur(cat.limit)}` : '';
+
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = `
+      <span class="cat-name" title="${cat.name}">${cat.name}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${barPct}%;background:${color}"></div>
+      </div>
+      <span class="cat-amt" style="color:${color}">${eur(cat.spent)}</span>
+      <span class="cat-limit">${limitTxt}</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+/* ── Bar chart ── */
+function renderBarChart(categories) {
+  const labels  = categories.map(c => c.name);
+  const spent   = categories.map(c => c.spent);
+  const limits  = categories.map(c => c.limit || 0);
+  const colors  = categories.map(c => pctColor(c.pct));
+
+  const cfg = {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Spent',
+          data: spent,
+          backgroundColor: colors,
+          borderRadius: 6,
+          order: 1,
+        },
+        {
+          label: 'Limit',
+          data: limits,
+          backgroundColor: 'transparent',
+          borderColor: '#475569',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          type: 'bar',
+          borderRadius: 6,
+          order: 2,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${eur(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: '#1e2335' } },
+        y: {
+          ticks: { color: '#94a3b8', font: { size: 11 },
+            callback: v => '€' + v.toLocaleString('de-DE') },
+          grid: { color: '#1e2335' }
+        }
+      },
+      animation: { duration: 500 }
+    }
+  };
+
+  if (barChart) {
+    barChart.data.labels = labels;
+    barChart.data.datasets[0].data   = spent;
+    barChart.data.datasets[0].backgroundColor = colors;
+    barChart.data.datasets[1].data   = limits;
+    barChart.update();
+  } else {
+    barChart = new Chart(document.getElementById('bar-canvas'), cfg);
+  }
+}
+
+/* ── Unclassified ── */
+function renderUnclassified(txs) {
+  const section = document.getElementById('unknown-section');
+  const list    = document.getElementById('unknown-list');
+  if (!txs || txs.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = txs.map(tx => `
+    <div class="tx-row">
+      <div>
+        <div class="tx-text">${tx.text}</div>
+        <div class="tx-date">${tx.date || ''}</div>
+      </div>
+      <span class="tx-amt" style="color:var(--red)">${eur(tx.amount)}</span>
+    </div>
+  `).join('');
+}
+
+/* ── Limits editor ── */
+function renderLimitsEditor(limits) {
+  currentLimits = { ...limits };
+  const grid = document.getElementById('limits-grid');
+  grid.innerHTML = '';
+  for (const [key, val] of Object.entries(limits)) {
+    if (key.startsWith('_')) continue;
+    const item = document.createElement('div');
+    item.className = 'limit-item';
+    item.innerHTML = `
+      <label>${key}</label>
+      <input type="number" id="limit-${key}" value="${val}" min="0" step="10" />
+    `;
+    grid.appendChild(item);
+  }
+  // Total budget
+  const totalItem = document.createElement('div');
+  totalItem.className = 'limit-item';
+  totalItem.innerHTML = `
+    <label>🎯 total budget</label>
+    <input type="number" id="limit-_total" value="${limits._total || 3000}" min="0" step="100" />
+  `;
+  grid.appendChild(totalItem);
+}
+
+async function saveLimits() {
+  const inputs = document.querySelectorAll('[id^="limit-"]');
+  const payload = {};
+  inputs.forEach(inp => {
+    const key = inp.id.replace('limit-', '');
+    payload[key] = parseFloat(inp.value) || 0;
+  });
+  const resp = await fetch('/api/limits', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    document.getElementById('limits-status').textContent = '✓ Saved';
+    setTimeout(() => document.getElementById('limits-status').textContent = '', 2000);
+    loadData();
+  }
+}
+
+/* ── Upload ── */
+async function uploadCSV() {
+  const fileInput = document.getElementById('csv-file');
+  const file = fileInput.files[0];
+  if (!file) { alert('Please select a CSV file first.'); return; }
+  const form = new FormData();
+  form.append('file', file);
+  const resp = await fetch('/api/upload', { method: 'POST', body: form });
+  const status = document.getElementById('upload-status');
+  if (resp.ok) {
+    status.textContent = '✓ Uploaded — refreshing…';
+    status.style.color = 'var(--green)';
+    setTimeout(() => { status.textContent = ''; loadData(); }, 800);
+  } else {
+    status.textContent = '✗ Upload failed';
+    status.style.color = 'var(--red)';
+  }
+}
+
+/* ── Main data load ── */
+async function loadData() {
+  clearError();
+  document.getElementById('last-updated').textContent = 'Loading…';
+
+  try {
+    const [summaryResp, limitsResp] = await Promise.all([
+      fetch('/api/summary'),
+      fetch('/api/limits').catch(() => null),   // limits from config
+    ]);
+    const data = await summaryResp.json();
+
+    // Limits for editor come from config endpoint or fallback from summary
+    let limitsForEditor = {};
+    // We'll read limits from the config.json indirectly via the summary categories
+    // Build a flat limit map from categories + total
+    limitsForEditor['_total'] = data.monthly_budget;
+    data.categories && data.categories.forEach(c => {
+      if (c.limit) limitsForEditor[c.name] = c.limit;
+    });
+
+    // Show error if present
+    if (data.error) showError(data.error);
+
+    // KPIs
+    document.getElementById('kpi-budget').textContent    = eur(data.monthly_budget);
+    document.getElementById('kpi-spent').textContent     = eur(data.total_expense);
+    document.getElementById('kpi-txcount').textContent   = data.transaction_count;
+
+    const remEl = document.getElementById('kpi-remaining');
+    remEl.textContent = eur(data.remaining);
+    remEl.className   = 'value ' + remainingClass(data.remaining_pct);
+
+    // Gauge
+    const pctUsed = 100 - data.remaining_pct;
+    renderGauge(pctUsed);
+    document.getElementById('gauge-label').textContent =
+      `${eur(data.remaining)} remaining  (${data.remaining_pct}% left)`;
+    document.getElementById('gauge-label').style.color = pctColor(pctUsed);
+
+    // Category bars + chart
+    if (data.categories && data.categories.length) {
+      renderCategoryBars(data.categories);
+      renderBarChart(data.categories);
+    }
+
+    // Unclassified
+    renderUnclassified(data.unclassified);
+
+    // Limits editor — load config separately to get all categories
+    const cfgResp = await fetch('/api/config');
+    if (cfgResp.ok) {
+      const cfg = await cfgResp.json();
+      renderLimitsEditor(cfg);
+    } else {
+      renderLimitsEditor(limitsForEditor);
+    }
+
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleTimeString();
+
+  } catch (err) {
+    showError('Failed to load data: ' + err.message);
+    document.getElementById('last-updated').textContent = 'Error';
+  }
+}
+
+/* Auto-refresh every 60 seconds */
+setInterval(loadData, 60_000);
+loadData();
+</script>
+
+</body>
+</html>

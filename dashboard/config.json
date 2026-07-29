@@ -1,0 +1,15 @@
+{
+  "_total": 3000,
+  "_comment": "Monthly budget limits per category in EUR. _total is the overall monthly cap.",
+  "food":     500,
+  "rent":     900,
+  "gas":      150,
+  "fun":      300,
+  "life":     200,
+  "clothes":  150,
+  "car":      100,
+  "house":    200,
+  "hobby":    100,
+  "holidays": 300,
+  "other":    100
+}
