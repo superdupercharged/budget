@@ -39,6 +39,25 @@
     header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; }
     header h1 span { color: var(--accent); }
     .last-updated { font-size: .78rem; color: var(--muted); }
+    nav.site-nav {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    nav.site-nav a {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    nav.site-nav a:hover { color: var(--text); }
+    nav.site-nav a.active {
+      color: #fff;
+      background: var(--accent);
+    }
 
     /* ── Upload bar ── */
     .upload-bar {
@@ -174,32 +193,33 @@
       padding: 18px;
       margin-bottom: 20px;
     }
-    .categories-section .categories-header {
+    .categories-section > h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .commitment-group {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--surface2);
+    }
+    .commitment-group-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .categories-section .categories-header h2 {
-      font-size: .9rem;
+    .commitment-group-header h3 {
+      font-size: .78rem;
       font-weight: 600;
-      color: var(--muted);
-      margin: 0;
-    }
-    .categories-section.collapsed .commitment-row,
-    .categories-section.collapsed .commitment-divider {
-      display: none;
-    }
-    .commitment-divider {
-      font-size: .72rem;
       text-transform: uppercase;
       letter-spacing: .08em;
       color: var(--muted);
-      margin: 16px 0 10px;
-      padding-top: 12px;
-      border-top: 1px solid var(--surface2);
+      margin: 0;
     }
+    .commitment-group.collapsed .commitment-bars { display: none; }
     .cat-row.commitment-row .bar-fill {
       background: #3b82f6 !important;
     }
@@ -208,7 +228,7 @@
     }
     .cat-row {
       display: grid;
-      grid-template-columns: 90px 1fr 70px 60px;
+      grid-template-columns: 140px 1fr 70px 60px;
       align-items: center;
       gap: 10px;
       margin-bottom: 12px;
@@ -315,6 +335,11 @@
 
 <header>
   <h1>💸 <span>Budget</span> Dashboard</h1>
+  <nav class="site-nav">
+    <a href="/" class="active">Month</a>
+    <a href="/trends">Trends</a>
+    <a href="/stores">Stores</a>
+  </nav>
   <span class="last-updated" id="last-updated">Loading…</span>
 </header>
 
@@ -322,8 +347,8 @@
 
 <!-- Upload / month select -->
 <div class="upload-bar">
-  <label for="month-select">Statement:</label>
-  <select id="month-select" title="Which statement file to show"></select>
+  <label for="month-select">Month:</label>
+  <select id="month-select" title="Bank + Visa statements combined by YYYY-MM"></select>
   <label for="csv-file">Upload CSV:</label>
   <input type="file" id="csv-file" accept=".csv,.CSV" />
   <button type="button" class="btn" id="btn-upload">Upload</button>
@@ -336,6 +361,10 @@
   <div class="kpi">
     <span class="label">Income</span>
     <span class="value green" id="kpi-income">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Compensation</span>
+    <span class="value green" id="kpi-compensation">—</span>
   </div>
   <div class="kpi">
     <span class="label">Monthly Budget</span>
@@ -371,10 +400,7 @@
 
 <!-- Category bars -->
 <div class="categories-section" id="categories-section">
-  <div class="categories-header">
-    <h2>SPENDING BY CATEGORY</h2>
-    <button type="button" class="btn btn-ghost" id="btn-toggle-commitments" title="Hide house loan, car loan, savings, etc.">Hide commitments</button>
-  </div>
+  <h2>SPENDING BY CATEGORY</h2>
   <div id="cat-list"></div>
 </div>
 
@@ -466,11 +492,33 @@ function renderGauge(pctUsed) {
 }
 
 /* ── Category bars ── */
+const COMMITMENT_KEYS = new Set([
+  'house_loan', 'tithe', 'car_loan', 'savings', 'wuestenrot',
+]);
+const COMMITMENTS_HIDE_KEY = 'budget.hideCommitments';
+
+function applyCommitmentsVisibility() {
+  const group = document.getElementById('commitment-group');
+  const btn = document.getElementById('btn-toggle-commitments');
+  if (!group || !btn) return;
+  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
+  group.classList.toggle('collapsed', hidden);
+  btn.textContent = hidden ? 'Show' : 'Hide';
+}
+
+function toggleCommitments() {
+  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
+  localStorage.setItem(COMMITMENTS_HIDE_KEY, hidden ? '0' : '1');
+  applyCommitmentsVisibility();
+}
+
 function renderCategoryBars(categories, commitments) {
   const container = document.getElementById('cat-list');
   container.innerHTML = '';
 
-  (categories || []).forEach(cat => {
+  // Discretionary spend only (never mix commitment keys into this list)
+  const spendCats = (categories || []).filter(c => !COMMITMENT_KEYS.has(c.name));
+  spendCats.forEach(cat => {
     const pct     = cat.pct !== null && cat.pct !== undefined ? cat.pct : null;
     const barPct  = pct !== null ? Math.min(pct, 100) : 50;
     const color   = pctColor(pct);
@@ -489,14 +537,34 @@ function renderCategoryBars(categories, commitments) {
     container.appendChild(row);
   });
 
-  const items = (commitments || []).filter(c => (c.paid || 0) > 0 || (c.planned || 0) > 0);
+  if (!spendCats.length) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'color:var(--muted);font-size:.85rem;margin-bottom:8px';
+    empty.textContent = 'No discretionary spending in this statement.';
+    container.appendChild(empty);
+  }
+
+  // Fixed order group: house_loan, tithe, car_loan, savings, wuestenrot
+  const byName = Object.fromEntries((commitments || []).map(c => [c.name, c]));
+  const items = [
+    'house_loan', 'tithe', 'car_loan', 'savings', 'wuestenrot',
+  ].map(name => byName[name]).filter(Boolean);
+
   if (!items.length) return;
 
-  const divider = document.createElement('div');
-  divider.className = 'commitment-divider';
-  divider.textContent = 'Commitments (not in spend budget)';
-  container.appendChild(divider);
+  const group = document.createElement('div');
+  group.className = 'commitment-group';
+  group.id = 'commitment-group';
+  group.innerHTML = `
+    <div class="commitment-group-header">
+      <h3>Commitments</h3>
+      <button type="button" class="btn btn-ghost" id="btn-toggle-commitments">Hide</button>
+    </div>
+    <div class="commitment-bars" id="commitment-bars"></div>
+  `;
+  container.appendChild(group);
 
+  const bars = group.querySelector('#commitment-bars');
   items.forEach(c => {
     const paid = c.paid || 0;
     const planned = c.planned || 0;
@@ -513,16 +581,21 @@ function renderCategoryBars(categories, commitments) {
       <span class="cat-amt">${eur(paid)}</span>
       <span class="cat-limit">${limitTxt}</span>
     `;
-    container.appendChild(row);
+    bars.appendChild(row);
   });
+
+  group.querySelector('#btn-toggle-commitments')
+    .addEventListener('click', toggleCommitments);
+  applyCommitmentsVisibility();
 }
 
 /* ── Bar chart (discretionary spend only — no commitments) ── */
 function renderBarChart(categories) {
-  const labels  = categories.map(c => c.name);
-  const spent   = categories.map(c => c.spent);
-  const limits  = categories.map(c => c.limit || 0);
-  const colors  = categories.map(c => pctColor(c.pct));
+  const spendCats = (categories || []).filter(c => !COMMITMENT_KEYS.has(c.name));
+  const labels  = spendCats.map(c => c.name);
+  const spent   = spendCats.map(c => c.spent);
+  const limits  = spendCats.map(c => c.limit || 0);
+  const colors  = spendCats.map(c => pctColor(c.pct));
 
   const cfg = {
     type: 'bar',
@@ -583,23 +656,6 @@ function renderBarChart(categories) {
 }
 
 /* ── Commitments cards ── */
-const COMMITMENTS_HIDE_KEY = 'budget.hideCommitments';
-
-function applyCommitmentsVisibility() {
-  const section = document.getElementById('categories-section');
-  const btn = document.getElementById('btn-toggle-commitments');
-  if (!section || !btn) return;
-  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
-  section.classList.toggle('collapsed', hidden);
-  btn.textContent = hidden ? 'Show commitments' : 'Hide commitments';
-}
-
-function toggleCommitments() {
-  const hidden = localStorage.getItem(COMMITMENTS_HIDE_KEY) === '1';
-  localStorage.setItem(COMMITMENTS_HIDE_KEY, hidden ? '0' : '1');
-  applyCommitmentsVisibility();
-}
-
 function renderCommitments(commitments, total) {
   const grid = document.getElementById('commitments-grid');
   if (!grid) return;
@@ -661,8 +717,10 @@ function renderLimitsEditor(limits) {
   currentLimits = { ...limits };
   const grid = document.getElementById('limits-grid');
   grid.innerHTML = '';
+  let sum = 0;
   for (const [key, val] of Object.entries(limits)) {
     if (key.startsWith('_')) continue;
+    sum += Number(val) || 0;
     const item = document.createElement('div');
     item.className = 'limit-item';
     item.innerHTML = `
@@ -671,14 +729,24 @@ function renderLimitsEditor(limits) {
     `;
     grid.appendChild(item);
   }
-  // Total budget
   const totalItem = document.createElement('div');
   totalItem.className = 'limit-item';
   totalItem.innerHTML = `
-    <label>🎯 total budget</label>
-    <input type="number" id="limit-_total" value="${limits._total || 3000}" min="0" step="100" />
+    <label>total (sum)</label>
+    <input type="text" value="${sum.toFixed(0)}" disabled title="Sum of category limits" />
   `;
   grid.appendChild(totalItem);
+
+  grid.querySelectorAll('input[type=number]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      let s = 0;
+      grid.querySelectorAll('input[type=number]').forEach(i => {
+        s += parseFloat(i.value) || 0;
+      });
+      const out = totalItem.querySelector('input');
+      if (out) out.value = s.toFixed(0);
+    });
+  });
 }
 
 async function saveLimits() {
@@ -712,29 +780,28 @@ function selectedMonth() {
   return sel && sel.value ? sel.value : null;
 }
 
-async function refreshStatementList(preferFilename) {
+async function refreshStatementList(preferMonth) {
   const sel = document.getElementById('month-select');
   const resp = await fetch('/api/statements');
   if (!resp.ok) return;
-  const { files } = await resp.json();
-  const previous = preferFilename || sel.value;
+  const data = await resp.json();
+  const months = data.months || [];
+  const previous = preferMonth || sel.value;
   sel.innerHTML = '';
-  if (!files || files.length === 0) {
+  if (!months.length) {
     const opt = document.createElement('option');
     opt.value = '';
     opt.textContent = '(no statements yet)';
     sel.appendChild(opt);
     return;
   }
-  for (const name of files) {
+  for (const m of months) {
     const opt = document.createElement('option');
-    opt.value = name;
-    // Show YYYY-MM when filename looks like 2026-07_statement.CSV
-    const m = name.match(/(\d{4}-\d{2})/);
-    opt.textContent = m ? `${m[1]} — ${name}` : name;
+    opt.value = m;
+    opt.textContent = m;
     sel.appendChild(opt);
   }
-  if (previous && files.includes(previous)) {
+  if (previous && months.includes(previous)) {
     sel.value = previous;
   }
 }
@@ -766,7 +833,8 @@ async function uploadCSV() {
     }
     fileInput.value = '';
     setStatus('✓ Uploaded ' + body.filename);
-    await refreshStatementList(body.filename);
+    const m = (body.filename || '').match(/(\d{4}-\d{2})/);
+    await refreshStatementList(m ? m[1] : null);
     await loadData();
   } catch (err) {
     setStatus('✗ ' + err.message, false);
@@ -791,15 +859,20 @@ async function loadData() {
     ]);
     if (!summaryResp.ok) throw new Error('Summary request failed (' + summaryResp.status + ')');
     const data = await summaryResp.json();
+    const cfg = cfgResp.ok ? await cfgResp.json() : {};
 
-    let limitsForEditor = { _total: data.monthly_budget };
+    let limitsForEditor = {};
+    for (const [k, v] of Object.entries(cfg)) {
+      if (!k.startsWith('_')) limitsForEditor[k] = v;
+    }
     (data.categories || []).forEach(c => {
-      if (c.limit) limitsForEditor[c.name] = c.limit;
+      if (c.limit != null) limitsForEditor[c.name] = c.limit;
     });
 
     if (data.error) showError(data.error);
 
     document.getElementById('kpi-income').textContent    = eur(data.total_income ?? 0);
+    document.getElementById('kpi-compensation').textContent = eur(data.total_compensation ?? 0);
     document.getElementById('kpi-budget').textContent    = eur(data.monthly_budget);
     document.getElementById('kpi-spent').textContent     = eur(data.total_expense);
     document.getElementById('kpi-txcount').textContent   = data.transaction_count;
@@ -830,14 +903,8 @@ async function loadData() {
     }
 
     renderCommitments(data.commitments, data.total_commitments);
-    applyCommitmentsVisibility();
     renderUnclassified(data.unclassified);
-
-    if (cfgResp.ok) {
-      renderLimitsEditor(await cfgResp.json());
-    } else {
-      renderLimitsEditor(limitsForEditor);
-    }
+    renderLimitsEditor(Object.keys(limitsForEditor).length ? limitsForEditor : cfg);
 
     const src = data.source ? ` · ${data.source}` : '';
     document.getElementById('last-updated').textContent =
@@ -862,12 +929,10 @@ async function refreshClicked() {
 document.getElementById('btn-upload').addEventListener('click', uploadCSV);
 document.getElementById('btn-refresh').addEventListener('click', refreshClicked);
 document.getElementById('btn-save-limits').addEventListener('click', saveLimits);
-document.getElementById('btn-toggle-commitments').addEventListener('click', toggleCommitments);
 document.getElementById('month-select').addEventListener('change', () => loadData());
 
 /* Boot */
 (async function init() {
-  applyCommitmentsVisibility();
   await refreshStatementList();
   await loadData();
   setInterval(() => loadData(), 60000);

@@ -15,7 +15,9 @@ pip install -r requirements.txt
 | Category | Covers |
 |----------|--------|
 | `income` | Salary, family benefits, gratuities |
+| `compensation` | Inflows from own savings to cover spending (not earned income) |
 | `housing` | Rent, utilities, municipal fees |
+| `renovation` | DIY / builders merchants, materials, craftsmen (Hornbach, Bauhaus, …) |
 | `food` | Groceries, restaurants, bakeries |
 | `mobility` | Fuel, car, parking, charging |
 | `life` | Everyday / household / health / telecom |
@@ -24,7 +26,7 @@ pip install -r requirements.txt
 | `holidays` | Travel and vacation |
 | `savings` | Transfers to Consorsbank / BNP savings |
 | `car_loan` | Openbank / Santander car loan (~€258) |
-| `house_loan` | Mortgage / Darlehen (~€1,700) |
+| `house_loan` | Sparkasse Neu-Ulm mortgage (`Darl.-Leistung` / ~€1,700) |
 | `wuestenrot` | Wüstenrot Bausparen + Bausparkredit |
 | `tithe` | EFG Neu-Ulm Spende / MOSAIK (~€500) |
 | `transfers` | Other internal moves, credit-card settlement |
@@ -49,8 +51,13 @@ python3 run_dashboard.py          # http://localhost:8000
 python3 run_dashboard.py --port 8080
 ```
 
+- Pick a **month** (`YYYY-MM`) — bank + Visa files are merged automatically by filename
+  (`2026-07_statement.CSV` + `2026-07_visa_statement.CSV`)
+- Bank-side Visa **Abrechnung** (card settlement) is ignored as `transfers`; spend comes from Visa transactions
 - Upload a statement CSV in the UI (or place one in `statements/`)
-- View income, expenses, and per-category budget progress
+- View income, expenses, commitments, and per-category budget progress
+- **Trends** page (`/trends`): line chart of spend per category over months, with checkboxes to show/hide series
+- **Stores** page (`/stores`): treemap of Food, Life, Fun & Shopping spend by merchant for a month
 - Edit monthly limits in the UI (stored in `dashboard/config.json`)
 
 ## CLI

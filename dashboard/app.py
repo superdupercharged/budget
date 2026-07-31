@@ -2,8 +2,12 @@
 Budget Dashboard — FastAPI backend
 
 Endpoints:
-  GET  /              → serves the dashboard HTML
+  GET  /              → month dashboard
+  GET  /trends        → category spend over time
+  GET  /stores        → food/life/fun/shopping merchant treemap
   GET  /api/summary   → JSON summary of current month
+  GET  /api/trends    → JSON monthly series per category
+  GET  /api/stores    → JSON spend by merchant (food, life, fun, shopping)
   GET  /api/transactions → JSON list of all classified transactions
   POST /api/upload    → upload a new CSV statement
   POST /api/limits    → update budget limits
@@ -16,7 +20,14 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ingest import load_statement_with_meta, list_statement_files, summarize
+from ingest import (
+    load_statement_with_meta,
+    list_months,
+    summarize,
+    monthly_trends,
+    merchant_breakdown,
+    category_budget_total,
+)
 
 BASE_DIR    = Path(__file__).parent
 ROOT_DIR    = BASE_DIR.parent
@@ -40,12 +51,14 @@ def save_limits(limits: dict):
 
 
 def empty_summary(limits: dict, error: str) -> dict:
+    budget = category_budget_total(limits)
     return {
         "total_income": 0,
+        "total_compensation": 0,
         "total_expense": 0,
         "total_commitments": 0,
-        "monthly_budget": limits.get("_total", 3000),
-        "remaining": limits.get("_total", 3000),
+        "monthly_budget": budget,
+        "remaining": budget,
         "remaining_pct": 100,
         "categories": [],
         "commitments": [],
@@ -62,10 +75,36 @@ async def index():
     return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
 
 
+@app.get("/trends", response_class=HTMLResponse)
+async def trends_page():
+    html_path = BASE_DIR / "templates" / "trends.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/stores", response_class=HTMLResponse)
+async def stores_page():
+    html_path = BASE_DIR / "templates" / "stores.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/trends")
+async def get_trends():
+    STATEMENTS.mkdir(exist_ok=True)
+    return JSONResponse(monthly_trends(str(STATEMENTS)))
+
+
+@app.get("/api/stores")
+async def get_stores(month: str | None = None):
+    STATEMENTS.mkdir(exist_ok=True)
+    return JSONResponse(
+        merchant_breakdown(str(STATEMENTS), month, ["food", "life", "fun", "shopping"])
+    )
+
+
 @app.get("/api/statements")
 async def get_statements():
     STATEMENTS.mkdir(exist_ok=True)
-    return JSONResponse({"files": list_statement_files(str(STATEMENTS))})
+    return JSONResponse({"months": list_months(str(STATEMENTS))})
 
 
 @app.get("/api/summary")
@@ -118,9 +157,12 @@ async def get_limits():
 async def update_limits(body: dict = Body(...)):
     limits = load_limits()
     for k, v in body.items():
+        if k.startswith("_"):
+            continue  # total budget is derived; meta keys not editable here
         try:
             limits[k] = float(v)
         except (TypeError, ValueError):
             raise HTTPException(400, f"Invalid value for {k}: {v}")
+    limits["_total"] = category_budget_total(limits)
     save_limits(limits)
     return JSONResponse({"status": "ok", "limits": limits})

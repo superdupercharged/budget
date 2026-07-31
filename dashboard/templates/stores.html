@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stores — Food, Life, Fun &amp; Shopping</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --accent:    #7c6af7;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; }
+    header h1 span { color: var(--accent); }
+    nav.site-nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    nav.site-nav a {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    nav.site-nav a:hover { color: var(--text); }
+    nav.site-nav a.active { color: #fff; background: var(--accent); }
+
+    .toolbar {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .toolbar label { font-size: .85rem; color: var(--muted); }
+    .toolbar select {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid #2a3148;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: .85rem;
+    }
+    .hint { font-size: .82rem; color: var(--muted); flex: 1; min-width: 200px; }
+    .legend {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    .legend i {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    .cat-filters {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .cat-filters > span {
+      font-size: .78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-right: 4px;
+    }
+    .cat-filters label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: .85rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cat-filters label input { accent-color: var(--accent); cursor: pointer; }
+    .cat-filters .btn-mini {
+      background: var(--surface2);
+      color: var(--text);
+      border: none;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .cat-filters .btn-mini:hover { opacity: .85; }
+    .kpi.dimmed { opacity: .35; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .kpi {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .kpi .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .kpi .value { font-size: 1.25rem; font-weight: 700; margin-top: 4px; display: block; }
+
+    .chart-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 20px;
+    }
+    #treemap {
+      width: 100%;
+      height: min(72vh, 720px);
+      min-height: 420px;
+    }
+
+    .table-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .table-section h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #22263a;
+    }
+    th { color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .up { color: #f87171; }
+    .down { color: #4ade80; }
+    .flat { color: var(--muted); }
+    .cat-tag {
+      display: inline-block;
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    #error-banner {
+      display: none;
+      background: #3b1515;
+      border: 1px solid #ef4444;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: .85rem;
+      color: #fca5a5;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🛒 <span>Stores</span></h1>
+  <nav class="site-nav">
+    <a href="/">Month</a>
+    <a href="/trends">Trends</a>
+    <a href="/stores" class="active">Stores</a>
+  </nav>
+</header>
+
+<div id="error-banner"></div>
+
+<div class="toolbar">
+  <label for="month-select">Month:</label>
+  <select id="month-select"></select>
+  <span class="hint" id="meta-hint">Box size = spend · colour = change vs previous month</span>
+  <div class="legend">
+    <span><i style="background:#16a34a"></i> spent less</span>
+    <span><i style="background:#374151"></i> similar</span>
+    <span><i style="background:#dc2626"></i> spent more</span>
+  </div>
+</div>
+
+<div class="cat-filters" id="cat-filters">
+  <span>Show</span>
+  <label><input type="checkbox" data-cat="food" checked /> Food</label>
+  <label><input type="checkbox" data-cat="life" checked /> Life</label>
+  <label><input type="checkbox" data-cat="fun" checked /> Fun</label>
+  <label><input type="checkbox" data-cat="shopping" checked /> Shopping</label>
+  <button type="button" class="btn-mini" id="btn-cats-all">All</button>
+  <button type="button" class="btn-mini" id="btn-cats-none">None</button>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi">
+    <span class="label">Food</span>
+    <span class="value" id="kpi-food">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Life</span>
+    <span class="value" id="kpi-life">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Fun</span>
+    <span class="value" id="kpi-fun">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Shopping</span>
+    <span class="value" id="kpi-shopping">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">Combined</span>
+    <span class="value" id="kpi-total">—</span>
+  </div>
+  <div class="kpi">
+    <span class="label">vs prev month</span>
+    <span class="value" id="kpi-mom">—</span>
+  </div>
+</div>
+
+<div class="chart-section">
+  <div id="treemap"></div>
+</div>
+
+<div class="table-section">
+  <h2>BY STORE</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Store</th>
+        <th>Category</th>
+        <th class="num">This month</th>
+        <th class="num">Previous</th>
+        <th class="num">Change</th>
+      </tr>
+    </thead>
+    <tbody id="store-table"></tbody>
+  </table>
+</div>
+
+<script>
+const chart = echarts.init(document.getElementById('treemap'), null, { renderer: 'canvas' });
+const STORAGE_KEY = 'budget.stores.categories';
+const ALL_CATS = ['food', 'life', 'fun', 'shopping'];
+let currentMonth = null;
+let rawData = null;
+let visibleCats = new Set(ALL_CATS);
+
+function loadVisibleCats() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr.filter(c => ALL_CATS.includes(c)));
+      }
+    }
+  } catch (_) {}
+  return new Set(ALL_CATS);
+}
+
+function saveVisibleCats() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...visibleCats]));
+}
+
+function syncCheckboxes() {
+  document.querySelectorAll('#cat-filters input[data-cat]').forEach(input => {
+    input.checked = visibleCats.has(input.dataset.cat);
+  });
+}
+
+function filteredData() {
+  if (!rawData) return { groups: [], previous_month: null };
+  return {
+    ...rawData,
+    groups: (rawData.groups || []).filter(g => visibleCats.has(g.name)),
+  };
+}
+
+function refreshView() {
+  const data = filteredData();
+  renderKpis(data);
+  renderChart(data);
+  renderTable(data);
+}
+
+function eur(val) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val || 0);
+}
+
+function changeClass(pct) {
+  if (pct === null || pct === undefined) return 'flat';
+  if (pct > 5) return 'up';
+  if (pct < -5) return 'down';
+  return 'flat';
+}
+
+/** Map MoM % to a red/green shade (budget: red = spent more). */
+function changeColor(pct) {
+  if (pct === null || pct === undefined) return '#374151';
+  const capped = Math.max(-80, Math.min(80, pct));
+  if (Math.abs(capped) < 5) return '#374151';
+  if (capped > 0) {
+    // more spend → red
+    const t = capped / 80;
+    const r = Math.round(80 + t * 140);
+    const g = Math.round(40 - t * 20);
+    const b = Math.round(40 - t * 20);
+    return `rgb(${r},${g},${b})`;
+  }
+  // less spend → green
+  const t = Math.abs(capped) / 80;
+  const r = Math.round(30 - t * 10);
+  const g = Math.round(90 + t * 90);
+  const b = Math.round(50 + t * 20);
+  return `rgb(${r},${g},${b})`;
+}
+
+function shortAlias(alias) {
+  if (!alias) return '?';
+  if (alias.length <= 22) return alias;
+  return alias.slice(0, 20) + '…';
+}
+
+function buildTree(data) {
+  return (data.groups || []).map(g => ({
+    name: g.name.toUpperCase(),
+    value: g.total,
+    children: (g.items || []).map(item => ({
+      name: item.alias,
+      value: item.amount,
+      change_pct: item.change_pct,
+      previous: item.previous,
+      category: g.name,
+      itemStyle: { color: changeColor(item.change_pct) },
+    })),
+  }));
+}
+
+function renderChart(data) {
+  const tree = buildTree(data);
+  chart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      formatter(info) {
+        const d = info.data || {};
+        const lines = [
+          `<b>${info.name}</b>`,
+          eur(info.value),
+        ];
+        if (d.change_pct !== undefined && d.category) {
+          const sign = d.change_pct > 0 ? '+' : '';
+          lines.push(`vs prev: ${sign}${d.change_pct}%`);
+          lines.push(`prev: ${eur(d.previous)}`);
+        }
+        return lines.join('<br/>');
+      },
+    },
+    series: [{
+      type: 'treemap',
+      animationDurationUpdate: 400,
+      roam: false,
+      nodeClick: false,
+      breadcrumb: { show: false },
+      width: '100%',
+      height: '100%',
+      label: {
+        show: true,
+        formatter(params) {
+          const d = params.data || {};
+          if (d.category) {
+            const pct = d.change_pct;
+            const sign = pct > 0 ? '+' : '';
+            const pctStr = (pct === undefined || pct === null) ? '' : `\n${sign}${pct}%`;
+            return `{name|${shortAlias(params.name)}}\n{eur|${eur(params.value)}}${pctStr ? `{pct|${pctStr}}` : ''}`;
+          }
+          return `{group|${params.name}}\n{eur|${eur(params.value)}}`;
+        },
+        rich: {
+          name: { fontSize: 12, fontWeight: 700, color: '#f8fafc', lineHeight: 16 },
+          eur: { fontSize: 11, color: '#e2e8f0', lineHeight: 15 },
+          pct: { fontSize: 11, color: '#cbd5e1', lineHeight: 15 },
+          group: { fontSize: 13, fontWeight: 700, color: '#94a3b8', lineHeight: 18 },
+        },
+      },
+      upperLabel: { show: false },
+      itemStyle: {
+        borderColor: '#0f1117',
+        borderWidth: 2,
+        gapWidth: 2,
+      },
+      levels: [
+        {
+          itemStyle: {
+            borderColor: '#0f1117',
+            borderWidth: 4,
+            gapWidth: 4,
+          },
+          upperLabel: { show: false },
+        },
+        {
+          itemStyle: {
+            borderColor: '#0f1117',
+            borderWidth: 1,
+            gapWidth: 1,
+          },
+          colorSaturation: [0.25, 0.55],
+        },
+      ],
+      data: tree,
+    }],
+  }, true);
+}
+
+function renderKpis(data) {
+  // Totals from full raw data for each KPI; dim unchecked categories.
+  const allByName = Object.fromEntries((rawData?.groups || []).map(g => [g.name, g]));
+  const amounts = {
+    food: allByName.food?.total || 0,
+    life: allByName.life?.total || 0,
+    fun: allByName.fun?.total || 0,
+    shopping: allByName.shopping?.total || 0,
+  };
+  for (const cat of ALL_CATS) {
+    const el = document.getElementById('kpi-' + cat);
+    el.textContent = eur(amounts[cat]);
+    el.parentElement.classList.toggle('dimmed', !visibleCats.has(cat));
+  }
+
+  let total = 0;
+  let prevTotal = 0;
+  for (const g of data.groups || []) {
+    total += g.total || 0;
+    for (const i of g.items || []) prevTotal += i.previous || 0;
+  }
+  document.getElementById('kpi-total').textContent = eur(total);
+
+  const momEl = document.getElementById('kpi-mom');
+  if (!data.previous_month || prevTotal <= 0) {
+    momEl.textContent = '—';
+    momEl.className = 'value flat';
+  } else {
+    const pct = ((total - prevTotal) / prevTotal) * 100;
+    const sign = pct > 0 ? '+' : '';
+    momEl.textContent = `${sign}${pct.toFixed(1)}%`;
+    momEl.className = 'value ' + changeClass(pct);
+  }
+
+  const hint = document.getElementById('meta-hint');
+  hint.textContent = data.previous_month
+    ? `Box size = spend · colour = change vs ${data.previous_month}`
+    : 'Box size = spend · no previous month for comparison';
+}
+
+function renderTable(data) {
+  const rows = [];
+  for (const g of data.groups || []) {
+    for (const i of g.items || []) {
+      rows.push({ ...i, category: g.name });
+    }
+  }
+  rows.sort((a, b) => b.amount - a.amount);
+  const tbody = document.getElementById('store-table');
+  tbody.innerHTML = rows.map(r => {
+    const sign = r.change_pct > 0 ? '+' : '';
+    return `<tr>
+      <td>${r.alias}</td>
+      <td><span class="cat-tag">${r.category}</span></td>
+      <td class="num">${eur(r.amount)}</td>
+      <td class="num">${eur(r.previous)}</td>
+      <td class="num ${changeClass(r.change_pct)}">${sign}${r.change_pct}%</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5">No spend in the selected categories this month.</td></tr>';
+}
+
+async function loadMonths() {
+  const res = await fetch('/api/statements');
+  const data = await res.json();
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = (data.months || []).map(m =>
+    `<option value="${m}">${m}</option>`
+  ).join('');
+  if (data.months?.length) {
+    currentMonth = data.months[0];
+    sel.value = currentMonth;
+  }
+}
+
+async function loadDetail(month) {
+  const banner = document.getElementById('error-banner');
+  banner.style.display = 'none';
+  try {
+    const q = month ? `?month=${encodeURIComponent(month)}` : '';
+    const res = await fetch('/api/stores' + q);
+    if (!res.ok) throw new Error('Failed to load store breakdown');
+    rawData = await res.json();
+    if (rawData.month) {
+      currentMonth = rawData.month;
+      document.getElementById('month-select').value = rawData.month;
+    }
+    refreshView();
+  } catch (err) {
+    banner.textContent = err.message || String(err);
+    banner.style.display = 'block';
+  }
+}
+
+document.getElementById('month-select').addEventListener('change', (e) => {
+  loadDetail(e.target.value);
+});
+
+document.querySelectorAll('#cat-filters input[data-cat]').forEach(input => {
+  input.addEventListener('change', () => {
+    const cat = input.dataset.cat;
+    if (input.checked) visibleCats.add(cat);
+    else visibleCats.delete(cat);
+    saveVisibleCats();
+    refreshView();
+  });
+});
+
+document.getElementById('btn-cats-all').addEventListener('click', () => {
+  visibleCats = new Set(ALL_CATS);
+  saveVisibleCats();
+  syncCheckboxes();
+  refreshView();
+});
+
+document.getElementById('btn-cats-none').addEventListener('click', () => {
+  visibleCats = new Set();
+  saveVisibleCats();
+  syncCheckboxes();
+  refreshView();
+});
+
+window.addEventListener('resize', () => chart.resize());
+
+(async () => {
+  visibleCats = loadVisibleCats();
+  syncCheckboxes();
+  await loadMonths();
+  await loadDetail(currentMonth);
+})();
+</script>
+</body>
+</html>

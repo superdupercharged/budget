@@ -3,8 +3,11 @@ import json
 
 budget_categories = {
     "income": [],
+    "compensation": [],
     "housing": ["RAUSCH"],
-    "food": ["STAIB", "LIDL", "MCDONALDS"],
+    "renovation": ["Hornbach", "BAUHAUS"],
+    "food": ["STAIB", "LIDL", "REWE"],
+    "fun": ["KFC", "MCDONALDS", "BURGER KING"],
     "mobility": ["Ran-TSUlm"],
     "life": ["RUNDFUNK"],
     "fun": ["BAD BLAU", "SPIELBURG"],

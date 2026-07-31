@@ -42,8 +42,8 @@ def category_names_with_index(_category_names):
     return _category_names
 
 for index, row in df_booking.iterrows():
-    if budget.search_category(row['Buchungstext']) is not False:
-        category_name, alias = budget.search_category(row['Buchungstext'])
+    if budget.classify_text(row['Buchungstext']) is not False:
+        category_name, alias = budget.classify_text(row['Buchungstext'])
         category_index = category_names.index(category_name)
         update_evaluation()
             
@@ -100,7 +100,7 @@ for index, row in df_booking_unknown.iterrows():
     print(f'{df_booking_unknown.shape[0]} unclassified bookings are left')
 
 total_in, total_out = 0, 0
-ignore_cats = {"transfers", "savings", "car_loan", "house_loan", "wuestenrot", "tithe"}
+ignore_cats = {"transfers", "savings", "car_loan", "house_loan", "wuestenrot", "tithe", "compensation"}
 for i, name in enumerate(category_names):
     if i >= len(category_sums):
         break

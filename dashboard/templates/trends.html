@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Trends</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --accent:    #7c6af7;
+      --green:     #22c55e;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px; }
+    header h1 span { color: var(--accent); }
+    nav.site-nav { display: flex; gap: 8px; align-items: center; }
+    nav.site-nav a {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    nav.site-nav a:hover { color: var(--text); }
+    nav.site-nav a.active { color: #fff; background: var(--accent); }
+
+    .hint {
+      font-size: .85rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    #error-banner {
+      display: none;
+      background: #3b1515;
+      border: 1px solid #ef4444;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: .85rem;
+      color: #fca5a5;
+    }
+
+    .chart-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .chart-section h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      min-height: 360px;
+    }
+
+    .filters {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .filters h2 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0 16px;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .check-grid.compact { margin-top: 12px; }
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: .82rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check-item input { accent-color: var(--accent); cursor: pointer; }
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .group-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin: 14px 0 8px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📈 <span>Budget</span> Trends</h1>
+  <nav class="site-nav">
+    <a href="/">Month</a>
+    <a href="/trends" class="active">Trends</a>
+    <a href="/stores">Stores</a>
+  </nav>
+</header>
+
+<p class="hint">Spend by category across months. Toggle categories below — selection is remembered.</p>
+<div id="error-banner"></div>
+
+<div class="chart-section">
+  <h2>SPEND OVER TIME</h2>
+  <div class="chart-wrap">
+    <canvas id="trend-canvas"></canvas>
+  </div>
+</div>
+
+<div class="filters">
+  <h2>CATEGORIES</h2>
+  <div class="filter-actions">
+    <button type="button" class="btn btn-ghost" id="btn-all">All spend</button>
+    <button type="button" class="btn btn-ghost" id="btn-none">None</button>
+    <button type="button" class="btn btn-ghost" id="btn-defaults">Defaults</button>
+  </div>
+  <div class="check-grid" id="spend-checks"></div>
+  <div class="group-label">Commitments</div>
+  <div class="check-grid compact" id="commit-checks"></div>
+  <div class="group-label">Totals</div>
+  <div class="check-grid compact" id="total-checks"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'budget.trends.visible';
+
+const CAT_COLORS = {
+  housing:    '#60a5fa',
+  renovation: '#f97316',
+  food:       '#22c55e',
+  life:       '#a78bfa',
+  mobility:   '#38bdf8',
+  shopping:   '#f472b6',
+  fun:        '#eab308',
+  holidays:   '#14b8a6',
+  other:      '#94a3b8',
+  house_loan: '#818cf8',
+  tithe:      '#c084fc',
+  car_loan:   '#fb7185',
+  savings:    '#34d399',
+  wuestenrot: '#fbbf24',
+  income:     '#22c55e',
+  compensation: '#86efac',
+  _total:     '#e2e8f0',
+};
+
+const LABELS = {
+  housing: 'Housing',
+  renovation: 'Renovation',
+  food: 'Food',
+  life: 'Life',
+  mobility: 'Mobility',
+  shopping: 'Shopping',
+  fun: 'Fun',
+  holidays: 'Holidays',
+  other: 'Other',
+  house_loan: 'House loan',
+  tithe: 'Tithe',
+  car_loan: 'Car loan',
+  savings: 'Savings',
+  wuestenrot: 'Wüstenrot',
+  income: 'Income',
+  compensation: 'Compensation',
+  _total: 'Total spend',
+};
+
+let trendData = null;
+let trendChart = null;
+let visible = new Set();
+
+function eur(val) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val);
+}
+
+function colorFor(cat) {
+  return CAT_COLORS[cat] || '#7c6af7';
+}
+
+function loadVisible(defaults) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return new Set(arr);
+    }
+  } catch (_) {}
+  return new Set(defaults);
+}
+
+function saveVisible() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...visible]));
+}
+
+function buildChecks() {
+  const spendEl = document.getElementById('spend-checks');
+  const commitEl = document.getElementById('commit-checks');
+  const totalEl = document.getElementById('total-checks');
+  spendEl.innerHTML = '';
+  commitEl.innerHTML = '';
+  totalEl.innerHTML = '';
+
+  const commits = new Set(trendData.commitments || []);
+
+  function addCheck(parent, cat) {
+    const id = `chk-${cat}`;
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.htmlFor = id;
+    label.innerHTML = `
+      <input type="checkbox" id="${id}" data-cat="${cat}" ${visible.has(cat) ? 'checked' : ''} />
+      <span class="swatch" style="background:${colorFor(cat)}"></span>
+      <span>${LABELS[cat] || cat}</span>
+    `;
+    parent.appendChild(label);
+  }
+
+  for (const cat of trendData.categories) {
+    addCheck(commits.has(cat) ? commitEl : spendEl, cat);
+  }
+  addCheck(totalEl, 'income');
+  addCheck(totalEl, 'compensation');
+  addCheck(totalEl, '_total');
+
+  document.querySelectorAll('input[data-cat]').forEach(input => {
+    input.addEventListener('change', () => {
+      const cat = input.dataset.cat;
+      if (input.checked) visible.add(cat);
+      else visible.delete(cat);
+      saveVisible();
+      renderChart();
+    });
+  });
+}
+
+function renderChart() {
+  if (!trendData) return;
+  const labels = trendData.months;
+  const datasets = [];
+
+  const order = ['income', 'compensation', ...trendData.categories, '_total'];
+  for (const cat of order) {
+    if (!visible.has(cat)) continue;
+    const data = trendData.series[cat] || [];
+    datasets.push({
+      label: LABELS[cat] || cat,
+      data,
+      borderColor: colorFor(cat),
+      backgroundColor: colorFor(cat) + '33',
+      tension: 0.25,
+      fill: false,
+      borderWidth: (cat === '_total' || cat === 'income' || cat === 'compensation') ? 3 : 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderDash: cat === '_total' ? [6, 4] : (cat === 'compensation' ? [4, 3] : []),
+    });
+  }
+
+  const cfg = {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#94a3b8', font: { size: 11 } },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${eur(ctx.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748b' },
+          grid: { color: '#22263a' },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#64748b',
+            callback: (v) => '€' + Number(v).toLocaleString('de-DE'),
+          },
+          grid: { color: '#22263a' },
+        },
+      },
+    },
+  };
+
+  if (trendChart) {
+    trendChart.data = cfg.data;
+    trendChart.options = cfg.options;
+    trendChart.update();
+  } else {
+    trendChart = new Chart(document.getElementById('trend-canvas'), cfg);
+  }
+}
+
+function setVisible(cats) {
+  visible = new Set(cats);
+  saveVisible();
+  document.querySelectorAll('input[data-cat]').forEach(input => {
+    input.checked = visible.has(input.dataset.cat);
+  });
+  renderChart();
+}
+
+document.getElementById('btn-all').addEventListener('click', () => {
+  setVisible(trendData.categories);
+});
+document.getElementById('btn-none').addEventListener('click', () => {
+  setVisible([]);
+});
+document.getElementById('btn-defaults').addEventListener('click', () => {
+  setVisible(trendData.defaults || []);
+});
+
+async function load() {
+  const banner = document.getElementById('error-banner');
+  try {
+    const res = await fetch('/api/trends');
+    if (!res.ok) throw new Error('Failed to load trends');
+    trendData = await res.json();
+    if (!trendData.months || !trendData.months.length) {
+      banner.textContent = 'No statements found yet.';
+      banner.style.display = 'block';
+      return;
+    }
+    visible = loadVisible(trendData.defaults || []);
+    // Keep unknown stored keys that still exist; drop stale ones
+    const allowed = new Set([...(trendData.categories || []), '_total', 'income', 'compensation']);
+    visible = new Set([...visible].filter(c => allowed.has(c)));
+    if (!visible.size) visible = new Set(trendData.defaults || []);
+    buildChecks();
+    renderChart();
+  } catch (err) {
+    banner.textContent = err.message || String(err);
+    banner.style.display = 'block';
+  }
+}
+
+load();
+</script>
+</body>
+</html>

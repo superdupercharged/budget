@@ -1,21 +1,22 @@
 {
-  "_total": 5400,
-  "_comment": "Suggested monthly limits from ~€6,940 mean income (excl. June/December). Housing includes Nebenkosten (€500). Commitments tracked separately.",
+  "_total": 5725.0,
+  "_comment": "Includes renovation envelope for ongoing house work. Commitments tracked separately.",
   "_income_basis": 6940,
   "_income_excludes": "June, December (extra payments); partial months",
   "_commitments": {
-    "savings": 200,
-    "car_loan": 258,
     "house_loan": 1700,
-    "wuestenrot": 300,
-    "tithe": 500
+    "tithe": 500,
+    "car_loan": 258,
+    "savings": 200,
+    "wuestenrot": 300
   },
-  "housing": 1600,
-  "food": 925,
-  "life": 925,
-  "mobility": 350,
-  "shopping": 525,
-  "fun": 400,
-  "holidays": 425,
-  "other": 250
+  "housing": 800.0,
+  "renovation": 800.0,
+  "food": 1000.0,
+  "life": 925.0,
+  "mobility": 150.0,
+  "shopping": 1000.0,
+  "fun": 400.0,
+  "holidays": 425.0,
+  "other": 225.0
 }
