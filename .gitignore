@@ -1,5 +1,7 @@
 statements/
 evaluation/
+.env
+scripts/.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
