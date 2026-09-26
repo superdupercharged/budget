@@ -93,6 +93,8 @@ python3 -m dashboard.screenshot_ingest path/to/shots/ --db data/screenshot_booki
 
 `--date` is the reference day for `Gestern` / `Heute` / missing dates (defaults to today). Re-running the same image inserts zero new bookings. The dashboard merges screenshot rows for a month alongside CSV statements (`source_kind=screenshot`).
 
+**Web UI:** on the home page (`/`), use **Screenshot** + **Ingest shot** next to the CSV upload. The server writes a temp file, runs the same OCR→SQLite path, then **deletes the image** (OCR text + bookings remain in the DB; no image blobs stored).
+
 ## Configuration
 
 | File | Purpose |

@@ -73,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
         help="OCR + parse only; do not write SQLite",
     )
     parser.add_argument(
+        "--delete",
+        action="store_true",
+        help="Delete image file(s) after successful ingest (web uploads always delete)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Print machine-readable JSON summary",
@@ -108,7 +113,10 @@ def main(argv: list[str] | None = None) -> int:
             }
         else:
             result = ingest_screenshot(
-                img, db_path=args.db, reference_date=ref
+                img,
+                db_path=args.db,
+                reference_date=ref,
+                delete_file=args.delete,
             )
             summary = {
                 "file": str(img),
@@ -117,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
                 "inserted": result["inserted"],
                 "skipped_dupes": result["skipped_dupes"],
                 "bookings": result["bookings"],
+                "file_deleted": result.get("file_deleted", False),
             }
         summaries.append(summary)
 

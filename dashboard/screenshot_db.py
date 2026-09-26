@@ -92,11 +92,14 @@ def ingest_screenshot(
     db_path: str | Path | None = None,
     reference_date: date | None = None,
     conn: sqlite3.Connection | None = None,
+    delete_file: bool = False,
 ) -> dict:
     """
     OCR + parse + store. Fingerprint collisions are skipped (dedupe).
 
-    Returns counts: inserted, skipped_dupes, parsed, screenshot_id, bookings.
+    Never stores image bytes — only OCR text + booking rows.
+    When delete_file=True, removes the image path after a successful store
+    (and still removes it on failure so upload temps do not orphan).
     """
     path = Path(image_path)
     if not path.is_file():
@@ -177,10 +180,16 @@ def ingest_screenshot(
             "skipped_dupes": skipped,
             "bookings": rows_out,
             "ocr_text": ocr_text,
+            "file_deleted": bool(delete_file),
         }
     finally:
         if own_conn:
             conn.close()
+        if delete_file:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def list_booking_months(db_path: str | Path | None = None) -> list[str]:

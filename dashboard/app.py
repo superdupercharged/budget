@@ -10,13 +10,17 @@ Endpoints:
   GET  /api/stores    → JSON spend by merchant (food, life, fun, shopping)
   GET  /api/transactions → JSON list of all classified transactions
   POST /api/upload    → upload a new CSV statement
+  POST /api/upload-screenshot → OCR ingest a Buchungen screenshot
   POST /api/limits    → update budget limits
 """
 
 import json
+import os
+import tempfile
+from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -28,12 +32,14 @@ from ingest import (
     merchant_breakdown,
     category_budget_total,
 )
+from screenshot_db import DEFAULT_DB, ingest_screenshot
 
 BASE_DIR    = Path(__file__).parent
 ROOT_DIR    = BASE_DIR.parent
 STATEMENTS  = ROOT_DIR / "statements"
 CONFIG_FILE = BASE_DIR / "config.json"
 STATIC_DIR  = BASE_DIR / "static"
+SCREENSHOT_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
 
 app = FastAPI(title="Budget Dashboard")
 STATIC_DIR.mkdir(exist_ok=True)
@@ -114,7 +120,8 @@ async def get_summary(month: str | None = None):
     transactions, source = load_statement_with_meta(str(STATEMENTS), month)
     if not transactions:
         return JSONResponse(empty_summary(
-            limits, "No statement file found. Upload a CSV to get started."
+            limits,
+            "No statement or screenshot bookings found. Upload a CSV or screenshot.",
         ))
     summary = summarize(transactions, limits)
     summary["source"] = source
@@ -141,6 +148,92 @@ async def upload_statement(file: UploadFile = File(...)):
     content = await file.read()
     dest.write_bytes(content)
     return JSONResponse({"status": "ok", "filename": safe_name})
+
+
+@app.post("/api/upload-screenshot")
+async def upload_screenshot(
+    file: UploadFile = File(...),
+    ref_date: str | None = Form(None),
+):
+    """
+    Ingest a Buchungen screenshot: OCR → SQLite → classify.
+    The uploaded image is deleted after processing (success or failure).
+    """
+    if not file.filename:
+        raise HTTPException(400, "Missing filename.")
+    safe_name = Path(file.filename).name
+    suffix = Path(safe_name).suffix.lower()
+    if suffix not in SCREENSHOT_SUFFIXES:
+        raise HTTPException(
+            400,
+            f"Unsupported image type {suffix!r}. Use: {', '.join(sorted(SCREENSHOT_SUFFIXES))}",
+        )
+
+    reference: date | None = None
+    if ref_date:
+        raw = ref_date.strip()
+        for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
+            try:
+                reference = datetime.strptime(raw, fmt).date()
+                break
+            except ValueError:
+                continue
+        if reference is None:
+            raise HTTPException(400, "Invalid ref_date; use YYYY-MM-DD or DD.MM.YYYY")
+
+    tmp_path: Path | None = None
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(400, "Empty upload.")
+        fd, tmp_name = tempfile.mkstemp(suffix=suffix, prefix="budget-shot-")
+        tmp_path = Path(tmp_name)
+        try:
+            os.write(fd, content)
+        finally:
+            os.close(fd)
+
+        result = ingest_screenshot(
+            tmp_path,
+            db_path=DEFAULT_DB,
+            reference_date=reference,
+            delete_file=True,
+        )
+    except HTTPException:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        raise HTTPException(500, f"Screenshot ingest failed: {exc}") from exc
+
+    month = None
+    for b in result.get("bookings") or []:
+        d = b.get("date") or ""
+        if len(d) >= 7:
+            month = d[:7]
+            break
+
+    return JSONResponse({
+        "status": "ok",
+        "filename": safe_name,
+        "parsed": result["parsed"],
+        "inserted": result["inserted"],
+        "skipped_dupes": result["skipped_dupes"],
+        "month": month,
+        "file_deleted": True,
+        "bookings": [
+            {
+                "date": b["date"],
+                "text": b["text"],
+                "amount": b["amount"],
+                "category": b.get("category"),
+                "status": b.get("status"),
+            }
+            for b in result.get("bookings") or []
+        ],
+    })
 
 
 @app.get("/api/config")
