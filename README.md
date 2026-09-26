@@ -57,7 +57,7 @@ python3 classify_unknown.py --ask        # apply auto-rules, then prompt for rem
 ## Dashboard
 
 ```bash
-python3 run_dashboard.py          # http://localhost:8000
+python3 run_dashboard.py          # http://localhost:8000 (binds 0.0.0.0)
 python3 run_dashboard.py --port 8080
 ```
 
@@ -69,6 +69,34 @@ python3 run_dashboard.py --port 8080
 - **Trends** page (`/trends`): line chart of spend per category over months, with checkboxes to show/hide series
 - **Stores** page (`/stores`): treemap of Food, Life, Fun & Shopping spend by merchant for a month
 - Edit monthly limits in the UI (stored in `dashboard/config.json`)
+
+### Docker (LAN / phone test)
+
+Runs the same dashboard on port **8000**, listening on `0.0.0.0`, with `data/` and `statements/` persisted via volumes. No sample screenshots are baked into the image.
+
+```bash
+# Build & start
+docker compose up --build -d
+
+# Or without compose:
+docker build -t budget-dashboard:local .
+mkdir -p data statements
+docker run --rm -p 8000:8000 \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/statements:/app/statements" \
+  -v "$PWD/dashboard/config.json:/app/dashboard/config.json" \
+  -v "$PWD/budget_dict.json:/app/budget_dict.json" \
+  budget-dashboard:local
+```
+
+On this machine: [http://localhost:8000/](http://localhost:8000/)  
+On a phone (same Wi‑Fi): `http://<host-lan-ip>:8000/` — find the host IP with `ip addr` / `hostname -I` (Linux) or System Settings → Network (macOS/Windows).
+
+If the phone cannot connect, allow inbound TCP **8000** on the host firewall (e.g. `ufw allow 8000/tcp`). Screenshot upload is on the home page (**Screenshot** → **Ingest shot**); temp images are deleted after OCR.
+
+```bash
+docker compose down
+```
 
 ## CLI
 
