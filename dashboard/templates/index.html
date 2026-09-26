@@ -352,6 +352,9 @@
   <label for="csv-file">Upload CSV:</label>
   <input type="file" id="csv-file" accept=".csv,.CSV" />
   <button type="button" class="btn" id="btn-upload">Upload</button>
+  <label for="shot-file">Screenshot:</label>
+  <input type="file" id="shot-file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" />
+  <button type="button" class="btn" id="btn-shot-upload">Ingest shot</button>
   <button type="button" class="btn btn-ghost" id="btn-refresh">↻ Refresh</button>
   <span id="upload-status"></span>
 </div>
@@ -843,6 +846,41 @@ async function uploadCSV() {
   }
 }
 
+/* ── Upload screenshot: OCR → SQLite (image deleted server-side) ── */
+async function uploadScreenshot() {
+  const fileInput = document.getElementById('shot-file');
+  const file = fileInput.files[0];
+  if (!file) {
+    setStatus('Select a screenshot first.', false);
+    return;
+  }
+  const btn = document.getElementById('btn-shot-upload');
+  btn.disabled = true;
+  setStatus('Ingesting screenshot…');
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    // Optional: today as reference for Gestern/Heute (server defaults to today)
+    form.append('ref_date', new Date().toISOString().slice(0, 10));
+    const resp = await fetch('/api/upload-screenshot', { method: 'POST', body: form });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const detail = body.detail;
+      throw new Error(typeof detail === 'string' ? detail : (detail && detail[0] && detail[0].msg) || 'Ingest failed');
+    }
+    fileInput.value = '';
+    const n = body.inserted ?? 0;
+    const d = body.skipped_dupes ?? 0;
+    setStatus(`✓ Shot: ${body.parsed ?? 0} parsed, ${n} new, ${d} dupes`);
+    await refreshStatementList(body.month || null);
+    await loadData();
+  } catch (err) {
+    setStatus('✗ ' + err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ── Main data load ── */
 async function loadData() {
   clearError();
@@ -927,6 +965,7 @@ async function refreshClicked() {
 
 /* Wire buttons (type=button + listeners — more reliable than inline onclick) */
 document.getElementById('btn-upload').addEventListener('click', uploadCSV);
+document.getElementById('btn-shot-upload').addEventListener('click', uploadScreenshot);
 document.getElementById('btn-refresh').addEventListener('click', refreshClicked);
 document.getElementById('btn-save-limits').addEventListener('click', saveLimits);
 document.getElementById('month-select').addEventListener('change', () => loadData());

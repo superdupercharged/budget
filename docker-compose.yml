@@ -1,0 +1,17 @@
+services:
+  budget:
+    build: .
+    image: budget-dashboard:local
+    ports:
+      # Host:container — open http://<lan-ip>:8000/ from a phone on the same Wi‑Fi
+      - "8000:8000"
+    volumes:
+      # Persist screenshot SQLite DB (and any other local data)
+      - ./data:/app/data
+      # Optional: drop CSV statements here
+      - ./statements:/app/statements
+      # Persist UI budget-limit edits
+      - ./dashboard/config.json:/app/dashboard/config.json
+      # Persist merchant keyword rules if you classify unknowns
+      - ./budget_dict.json:/app/budget_dict.json
+    restart: unless-stopped
