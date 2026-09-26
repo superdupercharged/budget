@@ -327,13 +327,18 @@ def month_key_from_name(name: str) -> str | None:
     return m.group(1) if m else None
 
 
-def list_months(statements_dir: str) -> list[str]:
-    """Unique YYYY-MM keys present in statements/, newest first."""
+def list_months(statements_dir: str, db_path: str | None = None) -> list[str]:
+    """Unique YYYY-MM keys from CSV statements and/or screenshot DB, newest first."""
     months = {
         key
         for name in list_statement_files(statements_dir)
         if (key := month_key_from_name(name))
     }
+    try:
+        from dashboard.screenshot_db import list_booking_months
+    except ImportError:
+        from screenshot_db import list_booking_months  # type: ignore
+    months.update(list_booking_months(db_path))
     return sorted(months, reverse=True)
 
 
@@ -580,15 +585,21 @@ def load_latest_statement(statements_dir: str, month: str | None = None) -> list
     return txs
 
 
-def load_statement_with_meta(statements_dir: str, month: str | None = None) -> tuple[list[dict], str | None]:
+def load_statement_with_meta(
+    statements_dir: str,
+    month: str | None = None,
+    db_path: str | None = None,
+) -> tuple[list[dict], str | None]:
     """
-    Load and classify all statement CSVs for one calendar month.
+    Load and classify statement CSVs for one calendar month, then merge
+    screenshot bookings from the local SQLite DB (same txn shape).
 
     Combines `YYYY-MM_statement.CSV` (bank) + `YYYY-MM_visa_statement.CSV`
     so credit-card purchases count as spend, while the bank-side card
     settlement (Abrechnung) is ignored via the transfers category.
+    Screenshot rows use source_kind='screenshot'.
     """
-    months = list_months(statements_dir)
+    months = list_months(statements_dir, db_path=db_path)
     if not months:
         return [], None
 
@@ -599,8 +610,6 @@ def load_statement_with_meta(statements_dir: str, month: str | None = None) -> t
         key = months[0]
 
     names = files_for_month(statements_dir, key)
-    if not names:
-        return [], None
 
     all_txs: list[dict] = []
     parts: list[str] = []
@@ -614,6 +623,20 @@ def load_statement_with_meta(statements_dir: str, month: str | None = None) -> t
             tx["source_file"] = name
             tx["source_kind"] = kind
         all_txs.extend(txs)
+
+    try:
+        from dashboard.screenshot_db import load_bookings_for_month
+    except ImportError:
+        from screenshot_db import load_bookings_for_month  # type: ignore
+
+    shot_txs = load_bookings_for_month(key, db_path=db_path)
+    if shot_txs:
+        if "screenshot" not in parts:
+            parts.append("screenshot")
+        all_txs.extend(shot_txs)
+
+    if not all_txs:
+        return [], None
 
     label = f"{key} ({'+'.join(parts)})" if parts else key
     return all_txs, label

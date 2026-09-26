@@ -10,6 +10,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Screenshot ingest (local OCR)
+
+System packages (Debian/Ubuntu):
+
+```bash
+sudo apt-get install tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
+```
+
+Python deps (`pytesseract`, `Pillow`) are in `requirements.txt`. OCR is local only — no cloud vision APIs.
+
 ## Categories
 
 | Category | Covers |
@@ -67,6 +77,21 @@ python3 budget.py <month>   # expects statements/<month>_statement.CSV
 ```
 
 Interactively classifies unclassified bookings and prints a category summary.
+
+### Screenshot bookings
+
+Second ingest path next to CSV statements. Parses Commerzbank “Buchungen” screenshots with local Tesseract, stores rows in `data/screenshot_bookings.db`, and dedupes by fingerprint (merchant + date + amount) so overlapping daily shots do not double-count.
+
+```bash
+# Dry-run (OCR + parse only)
+python3 -m dashboard.screenshot_ingest path/to/shot.jpg --dry-run --date 2026-09-26
+
+# Ingest into SQLite (default DB: data/screenshot_bookings.db)
+python3 -m dashboard.screenshot_ingest path/to/shot.jpg --date 2026-09-26
+python3 -m dashboard.screenshot_ingest path/to/shots/ --db data/screenshot_bookings.db
+```
+
+`--date` is the reference day for `Gestern` / `Heute` / missing dates (defaults to today). Re-running the same image inserts zero new bookings. The dashboard merges screenshot rows for a month alongside CSV statements (`source_kind=screenshot`).
 
 ## Configuration
 
